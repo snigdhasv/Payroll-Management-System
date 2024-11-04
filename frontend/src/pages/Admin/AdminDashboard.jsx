@@ -181,10 +181,10 @@ const AdminDashboard = () => {
           <div className={styles.metricsContainer}>
             <div className={styles.metricCard}>
               <div className={styles.cardContent}>
-                <img src={salaryIcon} alt="Average Salary Icon" className={styles.metricIcon} />
+                <img src={salaryIcon} alt="Average Base Salary Icon" className={styles.metricIcon} />
                 <div>
                   <div className={styles.metricNumber}>{data.avgSalary}</div>
-                  <div className={styles.metricLabel}>Average Salary</div>
+                  <div className={styles.metricLabel}>Average Base Salary</div>
                 </div>
               </div>
             </div>
