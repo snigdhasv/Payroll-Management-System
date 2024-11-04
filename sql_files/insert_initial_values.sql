@@ -20,7 +20,7 @@ VALUES
     ('john_doe', 'hashed_password1', 1, 'admin'),
     ('jane_smith', 'hashed_password2', 2, 'employee'),
     ('michael_j', 'hashed_password3', 3, 'employee'),
-    ('emily_d', 'hashed_password4', 4, 'manager');
+    ('emily_d', 'hashed_password4', 4, 'admin');
 
 -- Populate Payroll table
 INSERT INTO Payroll (employee_id, basic_salary, bonus, tax_deduction, deductions, net_salary, pay_date, payslip_generated)
