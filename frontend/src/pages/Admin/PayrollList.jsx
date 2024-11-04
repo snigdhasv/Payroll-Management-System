@@ -1,8 +1,8 @@
 // src/pages/PayrollList.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import styles from '../styles/PayrollList.module.css';
-import Sidebar from './Sidebar';
+import styles from '../../styles/Admin/PayrollList.module.css';
+import Sidebar from './AdminSidebar';
 
 const PayrollList = () => {
   const [payrollData, setPayrollData] = useState([]);

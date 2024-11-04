@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Select from 'react-select';
-import styles from '../styles/LeavesList.module.css';
-import Sidebar from './Sidebar';
+import styles from '../../styles/Admin/LeavesList.module.css';
+import Sidebar from './AdminSidebar';
 
 const LeavesList = () => {
     const [leaves, setLeaves] = useState([]);

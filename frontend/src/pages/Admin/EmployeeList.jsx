@@ -1,7 +1,7 @@
 // src/pages/EmployeeList.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import styles from '../styles/EmployeeList.module.css';
+import styles from '../../styles/Admin/Employee.module.css';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);

@@ -2,12 +2,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
-import EmployeeDashboard from './pages/EmployeeDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import EmployeePage from './pages/Employee';
-import PayrollList from './pages/PayrollList';
-import LeavesList from './pages/LeavesList';
+import LoginPage from './pages/Admin/LoginPage';
+import EmployeeDashboard from './pages/Employee/EmployeeDashboard';
+import AdminDashboard from './pages/Admin/AdminDashboard';
+import EmployeePage from './pages/Admin/Employee';
+import PayrollList from './pages/Admin/PayrollList';
+import LeavesList from './pages/Admin/LeavesList';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

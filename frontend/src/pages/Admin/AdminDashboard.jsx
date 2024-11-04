@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import axios from 'axios';
-import styles from '../styles/AdminDashboard.module.css';
-import Sidebar from './Sidebar';
-import totalEmployeesIcon from '../assets/totalEmployees.png';
-import pendingLeavesIcon from '../assets/pendingLeaves.png';
-import salaryIcon from '../assets/salary.png';
-import bonusIcon from '../assets/bonus.png';
+import styles from '../../styles/Admin/AdminDashboard.module.css';
+import Sidebar from './AdminSidebar';
+import totalEmployeesIcon from '../../assets/totalEmployees.png';
+import pendingLeavesIcon from '../../assets/pendingLeaves.png';
+import salaryIcon from '../../assets/salary.png';
+import bonusIcon from '../../assets/bonus.png';
 
 import {
   Chart as ChartJS,

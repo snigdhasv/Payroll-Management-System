@@ -1,7 +1,7 @@
 // src/pages/AddEmployeeForm.jsx
 import React, { useState } from 'react';
 import axios from 'axios';
-import styles from '../styles/EmployeeList.module.css';
+import styles from '../../styles/Admin/Employee.module.css';
 
 const AddEmployeeForm = ({ onEmployeeAdded }) => {
   const [formData, setFormData] = useState({

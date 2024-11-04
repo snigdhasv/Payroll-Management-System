@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import EmployeeList from './EmployeeList';
 import AddEmployeeForm from './AddEmployeeForm';
-import styles from '../styles/EmployeeList.module.css';
-import Sidebar from './Sidebar';
+import styles from '../../styles/Admin/Employee.module.css';
+import Sidebar from './AdminSidebar';
 
 const EmployeePage = () => {
   const [employees, setEmployees] = useState([]);

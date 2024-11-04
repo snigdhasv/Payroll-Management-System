@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; // Use useNavigate in React Router v6
-import styles from '../styles/LoginPage.module.css';
+import styles from '../../styles/Admin/LoginPage.module.css';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
