@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import EmployeePage from './pages/Employee';
+import PayrollList from './pages/PayrollList';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/employee_dashboard" element={<EmployeeDashboard/>} />
         <Route path="/admin_dashboard" element={<AdminDashboard/>} />
         <Route path="/employees" element={<EmployeePage />} />
+        <Route path="/payroll" element={<PayrollList />} />
       </Routes>
     </Router>
   </React.StrictMode>

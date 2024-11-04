@@ -18,9 +18,10 @@ import {
   PointElement,
   ArcElement,
   Tooltip,
-  Filler
+  Filler,
+  Legend
 } from 'chart.js';
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip, Filler);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip, Filler, Legend);
 
 const AdminDashboard = () => {
   const [data, setData] = useState({
@@ -70,7 +71,7 @@ const AdminDashboard = () => {
       {
         label: 'Payroll by Department',
         data: Object.values(data.departmentPayrollData),
-        backgroundColor: ['#55A8CB', '#FF6392', '#FFE45E', '#741C79', '#FF5647'],
+        backgroundColor: ['#55A8CB', '#FF6392', '#FFE45E', '#741C79', '#FF5647', '#8DE969'],
       },
     ],
   };
@@ -89,10 +90,36 @@ const AdminDashboard = () => {
     ],
   };
   
+
+  const deptPayrollChartOptions= {
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom', 
+        labels: {
+          usePointStyle: true, // Shows color swatches as points
+          boxWidth: 10, // Width of the color swatch boxes
+          padding: 15, // Spacing between legend items
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            const label = context.label || '';
+            const value = context.raw || 0;
+            return `${label}: $${value.toLocaleString()}`;
+          },
+        },
+      },
+    },
+  };
   
 
   const chartOptions = (startColor, endColor) => ({
     plugins: {
+      legend :{
+        display: false
+      },
       tooltip: {
         callbacks: {
           label: (context) => `${context.dataset.label}: ${context.raw.toLocaleString()}`,
@@ -176,9 +203,9 @@ const AdminDashboard = () => {
 
           {/* Department Payroll Chart */}
           <div className={styles.deptPayrollChart}>
-            <h3>Employees by Department Payroll</h3>
+            <h3>Payroll Expenses per Department</h3>
             <div className={styles.doughnutWrapper}>
-              <Doughnut data={departmentPayrollData} />
+              <Doughnut data={departmentPayrollData} options={deptPayrollChartOptions}/>
             </div>
           </div>
 
@@ -196,7 +223,7 @@ const AdminDashboard = () => {
 
           {/* Highest Salary Employees */}
           <div className={styles.highestSalarySection}>
-            <h3>Top 5 Highest Salary Employees</h3>
+            <h3>Top 5 Highest Base Salary of Employees</h3>
             <ul>
               {data.highestSalaryEmployees.map((emp, index) => (
                 <li key={index}>{emp.name}: ${emp.salary}</li>

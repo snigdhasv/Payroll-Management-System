@@ -1,8 +1,14 @@
 # backend/app.py
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import func, text, extract
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
+from io import BytesIO
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, extract, text
 from decimal import Decimal
@@ -322,6 +328,171 @@ def delete_employee(employee_id):
         db.session.rollback()
         print(f"Deletion error: {e}")
         return jsonify({"message": "Internal Server Error", "details": str(e)}), 500
+
+
+# API Endpoint to fetch payroll data with employee and payslip details
+@app.route('/api/payroll', methods=['GET'])
+def get_payroll_data():
+    payroll_data = (
+        db.session.query(
+            Payroll.employee_id,
+            Employee.first_name,
+            Employee.last_name,
+            Employee.role,
+            Employee.department,
+            Payroll.net_salary,
+            Payroll.pay_date,
+            Payroll.payslip_generated,
+            Payslip.payslip_id  
+        )
+        .join(Employee, Employee.employee_id == Payroll.employee_id)
+        .outerjoin(Payslip, Payroll.payroll_id == Payslip.payroll_id)
+        .all()
+    )
+    
+    payroll_list = [
+        {
+            "employee_id": record.employee_id,
+            "employee_name": f"{record.first_name} {record.last_name}",
+            "role": record.role,
+            "department": record.department,
+            "net_salary": float(record.net_salary) if record.net_salary is not None else 0.0,
+            "pay_date": record.pay_date.isoformat(),
+            "payslip_generated": record.payslip_generated,
+            "payroll_id": record.employee_id,
+            "payslip_pdf": f"/api/payslip/download/{record.payslip_id}" if record.payslip_id else None
+        }
+        for record in payroll_data
+    ]
+
+
+    return jsonify(payroll_list), 200
+
+
+# Serve Payslip PDF by ID
+@app.route('/api/payslip/download/<int:payslip_id>', methods=['GET'])
+def serve_payslip_by_id(payslip_id):
+    payslip = Payslip.query.get(payslip_id)
+    if payslip:
+        return send_file(BytesIO(payslip.payslip_pdf), mimetype='application/pdf', as_attachment=True, download_name=f"Payslip_{payslip_id}.pdf")
+    return jsonify({"message": "Payslip not found"}), 404
+
+
+# Function to generate and store payslip PDF
+@app.route('/api/payroll/generate_payslip/<int:payroll_id>', methods=['POST'])
+def generate_payslip(payroll_id):
+    print(f"Attempting to generate payslip for payroll ID: {payroll_id}")
+    payroll = Payroll.query.get(payroll_id)
+    employee = Employee.query.get(payroll.employee_id) if payroll else None
+    if not payroll or not employee:
+        return jsonify({"message": "Payroll or Employee not found"}), 404
+
+    gross_earnings = payroll.basic_salary + payroll.bonus
+    total_deductions = payroll.deductions + payroll.tax_deduction
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    # Title
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(250, height - 50, "Payslip")
+
+    # Employee Details Section
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(50, height - 100, f"Employee ID: {employee.employee_id}")
+    pdf.drawString(300, height - 100, f"Designation: {employee.role}")
+    pdf.drawString(50, height - 120, f"Employee Name: {employee.first_name} {employee.last_name}")
+    pdf.drawString(300, height - 120, f"Date of Joining: {employee.hire_date.strftime('%Y-%m-%d')}")
+    pdf.drawString(50, height - 140, f"Department: {employee.department}")
+    pdf.drawString(300, height - 140, f"Pay Date: {payroll.pay_date.strftime('%Y-%m-%d')}")
+
+    # Earnings Table
+    earnings_data = [
+        ["Earnings", "Amount"],
+        ["Basic Salary", f"${payroll.basic_salary:.2f}"],
+        ["Bonus", f"${payroll.bonus:.2f}"],
+        ["Gross Earnings", f"${gross_earnings:.2f}"]
+    ]
+    earnings_table = Table(earnings_data, colWidths=[2 * inch, 2 * inch])
+    earnings_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+    ]))
+    earnings_table.wrapOn(pdf, width, height)
+    earnings_table.drawOn(pdf, 50, height - 250)
+
+    # Deductions Table
+    deductions_data = [
+        ["Deductions", "Amount"],
+        ["Tax Deductions", f"${payroll.tax_deduction:.2f}"],
+        ["Other Deductions", f"${payroll.deductions:.2f}"],
+        ["Total Deductions", f"${total_deductions:.2f}"]
+    ]
+    deductions_table = Table(deductions_data, colWidths=[2 * inch, 2 * inch])
+    deductions_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+    ]))
+    deductions_table.wrapOn(pdf, width, height)
+    deductions_table.drawOn(pdf, 300, height - 250)
+
+    # Net Pay Section
+    net_pay_data = [
+        ["Net Pay", f"${payroll.net_salary:.2f}"]
+    ]
+    net_pay_table = Table(net_pay_data, colWidths=[2 * inch, 2 * inch])
+    net_pay_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+    ]))
+    net_pay_table.wrapOn(pdf, width, height)
+    net_pay_table.drawOn(pdf, 300, height - 300)
+
+    # Save PDF
+    pdf.showPage()
+    pdf.save()
+    pdf_data = buffer.getvalue()
+    buffer.close()
+
+    # Store payslip in database
+    new_payslip = Payslip(
+        employee_id=employee.employee_id,
+        payroll_id=payroll.payroll_id,
+        payslip_pdf=pdf_data,
+        generated_date=payroll.pay_date
+    )
+    db.session.add(new_payslip)
+    payroll.payslip_generated = True
+    db.session.commit()
+    
+    return jsonify({"message": "Payslip generated successfully"}), 201
+
+# Endpoint to download generated payslip by payroll ID
+@app.route('/api/payroll/download_payslip/<int:payroll_id>', methods=['GET'])
+def download_payslip_by_payroll(payroll_id):
+    payslip = Payslip.query.filter_by(payroll_id=payroll_id).first()
+    if payslip:
+        return send_file(BytesIO(payslip.payslip_pdf), mimetype='application/pdf', as_attachment=True, download_name=f"Payslip_{payslip.employee_id}_{payroll_id}.pdf")
+    return jsonify({"message": "Payslip not found"}), 404
+
+
 
 
 # Run the app
