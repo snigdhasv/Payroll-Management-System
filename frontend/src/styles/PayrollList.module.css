@@ -6,12 +6,16 @@
   height: 100vh;
   background-color: #dfdfdf;
   font-family: Arial, sans-serif;
-  color: #333;
+  color: #000;
   margin-left: 250px; /* Adjust for sidebar width */
 }
 
+.payrollHeader{
+  margin-top: 20px;
+}
+
 .payrollList{
-  margin: 20px;
+  margin-left: 20px;
 }
 
 /* Payroll table styling */

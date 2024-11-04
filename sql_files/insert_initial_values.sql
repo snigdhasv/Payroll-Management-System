@@ -18,8 +18,8 @@ VALUES
 INSERT INTO Users (username, password, employee_id, role)
 VALUES 
     ('john_doe', 'hashed_password1', 1, 'admin'),
-    ('jane_smith', 'hashed_password2', 2, 'user'),
-    ('michael_j', 'hashed_password3', 3, 'user'),
+    ('jane_smith', 'hashed_password2', 2, 'employee'),
+    ('michael_j', 'hashed_password3', 3, 'employee'),
     ('emily_d', 'hashed_password4', 4, 'manager');
 
 -- Populate Payroll table

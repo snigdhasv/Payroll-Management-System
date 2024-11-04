@@ -492,6 +492,47 @@ def download_payslip_by_payroll(payroll_id):
         return send_file(BytesIO(payslip.payslip_pdf), mimetype='application/pdf', as_attachment=True, download_name=f"Payslip_{payslip.employee_id}_{payroll_id}.pdf")
     return jsonify({"message": "Payslip not found"}), 404
 
+@app.route('/api/leaves', methods=['GET'])
+def get_leaves():
+    leaves = db.session.query(
+        Leaves.employee_id,
+        Employee.first_name,
+        Employee.last_name,
+        Leaves.leave_type,
+        Leaves.start_date,
+        Leaves.end_date,
+        Leaves.status,
+        Leaves.reason
+    ).join(Employee, Employee.employee_id == Leaves.employee_id).all()
+
+    leave_data = [
+        {
+            "employee_id": leave.employee_id,
+            "employee_name": f"{leave.first_name} {leave.last_name}",
+            "leave_type": leave.leave_type,
+            "start_date": leave.start_date.strftime('%Y-%m-%d'),
+            "end_date": leave.end_date.strftime('%Y-%m-%d'),
+            "status": leave.status,
+            "reason": leave.reason
+        }
+        for leave in leaves
+    ]
+
+    return jsonify(leave_data)
+
+@app.route('/api/leaves/update_status', methods=['POST'])
+def update_leave_status():
+    data = request.json
+    leave_id = data.get('leave_id')
+    new_status = data.get('status')
+
+    leave = Leaves.query.get(leave_id)
+    if leave:
+        leave.status = new_status
+        db.session.commit()
+        return jsonify({"message": "Leave status updated successfully"}), 200
+    else:
+        return jsonify({"message": "Leave record not found"}), 404
 
 
 

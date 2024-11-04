@@ -53,8 +53,8 @@ const PayrollList = () => {
   return (
     <div className={styles.payrollListContainer}>
       <Sidebar/>
+      <h1 className={styles.payrollHeader}>Payroll List</h1>
       <div className={styles.payrollList}>
-      <h1>Payroll List</h1>
       <table className={styles.payrollTable}>
         <thead>
           <tr>
