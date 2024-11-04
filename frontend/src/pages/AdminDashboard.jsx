@@ -17,15 +17,17 @@ import {
   LineElement,
   PointElement,
   ArcElement,
-  Tooltip
+  Tooltip,
+  Filler
 } from 'chart.js';
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Tooltip, Filler);
 
 const AdminDashboard = () => {
   const [data, setData] = useState({
     totalEmployees: 0,
     avgSalary: 0,
     payrollExpenses: [],
+    xAxisLabels: [],
     departmentData: {},
     turnoverRate: 0,
     employeeGrowth: [],
@@ -47,21 +49,9 @@ const AdminDashboard = () => {
 
     fetchDashboardData();
   }, []);
-  
-  const departmentPayrollData = {
-    labels: Object.keys(data.departmentPayrollData),
-    datasets: [
-      {
-        label: 'Payroll by Department',
-        data: Object.values(data.departmentPayrollData),
-        backgroundColor: ['#55A8CB', '#FF6392', '#FFE45E', '#741C79', '#FF5647'],
-      },
-    ],
-  };
-  
-   // Configuration for Payroll Expenses Data
-   const payrollData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+
+  const payrollData = {
+    labels: data.xAxisLabels,  // Auto-populated x-axis labels
     datasets: [
       {
         label: 'Payroll Expenses',
@@ -74,35 +64,38 @@ const AdminDashboard = () => {
     ],
   };
 
-  // Configuration for Employee Growth Data
+  const departmentPayrollData = {
+    labels: Object.keys(data.departmentPayrollData),
+    datasets: [
+      {
+        label: 'Payroll by Department',
+        data: Object.values(data.departmentPayrollData),
+        backgroundColor: ['#55A8CB', '#FF6392', '#FFE45E', '#741C79', '#FF5647'],
+      },
+    ],
+  };
+
   const employeeGrowthData = {
-    labels: data.employeeGrowth.map(item => `${item.year}-${item.month}`),
+    labels: data.employeeGrowth.map(item => `${item.year}-${String(item.month).padStart(2, '0')}`),
     datasets: [
       {
         label: 'New Hires per Month',
         data: data.employeeGrowth.map(item => item.count),
-        backgroundColor: 'rgba(116, 28, 121, 0.2)', // Light fill for area chart
+        backgroundColor: 'rgba(116, 28, 121, 0.2)',
         borderColor: '#741C79',
         fill: true,
         tension: 0.4,
       },
     ],
   };
+  
+  
 
-  // Gradient Function for Line Stroke
-  const createGradient = (ctx, area, startColor, endColor) => {
-    const gradient = ctx.createLinearGradient(0, 0, area.width, 0);
-    gradient.addColorStop(0, startColor);
-    gradient.addColorStop(1, endColor);
-    return gradient;
-  };
-
-  // Chart Options for Both Charts
   const chartOptions = (startColor, endColor) => ({
     plugins: {
       tooltip: {
         callbacks: {
-          label: (context) => `${context.dataset.label}: ${context.raw.toLocaleString()}`, // Tooltip format
+          label: (context) => `${context.dataset.label}: ${context.raw.toLocaleString()}`,
         },
       },
     },
@@ -112,8 +105,8 @@ const AdminDashboard = () => {
     },
     elements: {
       line: {
-        borderColor: (ctx) => createGradient(ctx.chart.ctx, ctx.chart.chartArea, startColor, endColor), // Gradient stroke
-        backgroundColor: 'rgba(85, 168, 203, 0.2)', // Fill color
+        borderColor: startColor,
+        backgroundColor: 'rgba(85, 168, 203, 0.2)',
       },
       point: {
         radius: 5,
@@ -127,29 +120,13 @@ const AdminDashboard = () => {
     },
   });
 
-
-  
-
-  const departmentPayrollTooltipOptions = {
-    plugins: {
-      tooltip: {
-        callbacks: {
-          label: (context) => {
-            return `${context.label}: $${context.raw.toLocaleString()}`;
-          }
-        }
-      }
-    }
-  };
-
-
   return (
     <div className={styles.adminDashboard}>
-      <Sidebar /> {/* Use Sidebar component here */}
+      <Sidebar />
 
       <main className={styles.dashboardContent}>
         <h1>Admin Dashboard</h1>
-        
+
         <div className={styles.gridLayout}>
           {/* Top Row Cards */}
           <div className={styles.metricsContainer}>
@@ -166,21 +143,10 @@ const AdminDashboard = () => {
           <div className={styles.metricsContainer}>
             <div className={styles.metricCard}>
               <div className={styles.cardContent}>
-              <img src={pendingLeavesIcon} alt="Pending Leaves Icon" className={styles.metricIcon} />
+                <img src={pendingLeavesIcon} alt="Pending Leaves Icon" className={styles.metricIcon} />
                 <div>
-                <div className={styles.metricNumber}>{data.pendingLeaves}</div>
-                <div className={styles.metricLabel}>Pending Leave Requests</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className={styles.metricsContainer}>
-            <div className={styles.metricCard}>
-              <div className={styles.cardContent}> 
-              <img src={salaryIcon} alt="Average Salary Icon" className={styles.metricIcon} />
-                <div>
-                <div className={styles.metricNumber}>{data.avgSalary}</div>
-                <div className={styles.metricLabel}>Average Salary</div>
+                  <div className={styles.metricNumber}>{data.pendingLeaves}</div>
+                  <div className={styles.metricLabel}>Pending Leave Requests</div>
                 </div>
               </div>
             </div>
@@ -188,19 +154,31 @@ const AdminDashboard = () => {
           <div className={styles.metricsContainer}>
             <div className={styles.metricCard}>
               <div className={styles.cardContent}>
-              <img src={bonusIcon} alt="Bonus Icon" className={styles.metricIcon} />
+                <img src={salaryIcon} alt="Average Salary Icon" className={styles.metricIcon} />
                 <div>
-                <div className={styles.metricNumber}>{data.bonusesIncentivesPaid}</div>
-                <div className={styles.metricLabel}>Bonuses & Incentives Paid in the Past Year</div>
+                  <div className={styles.metricNumber}>{data.avgSalary}</div>
+                  <div className={styles.metricLabel}>Average Salary</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className={styles.metricsContainer}>
+            <div className={styles.metricCard}>
+              <div className={styles.cardContent}>
+                <img src={bonusIcon} alt="Bonus Icon" className={styles.metricIcon} />
+                <div>
+                  <div className={styles.metricNumber}>{data.bonusesIncentivesPaid}</div>
+                  <div className={styles.metricLabel}>Bonuses & Incentives Paid in the Past Year</div>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Department Payroll Chart */}
           <div className={styles.deptPayrollChart}>
             <h3>Employees by Department Payroll</h3>
             <div className={styles.doughnutWrapper}>
-              <Doughnut key="departmentPayroll" data={departmentPayrollData} options={departmentPayrollTooltipOptions} />
+              <Doughnut data={departmentPayrollData} />
             </div>
           </div>
 
