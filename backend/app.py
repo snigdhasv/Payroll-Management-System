@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from sqlalchemy import func, text
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -124,6 +125,66 @@ def login():
         print("User not found")
         return jsonify({"message": "Invalid username or password"}), 401
 
+
+# API Endpoint to fetch admin dashboard data
+@app.route('/api/admin/dashboard', methods=['GET'])
+def get_dashboard_data():
+    # Total employees
+    total_employees = db.session.query(func.count(Employee.employee_id)).scalar()
+
+    # Average salary
+    avg_salary = db.session.query(func.avg(Employee.salary)).scalar()
+
+    # Employee count per department
+    departments = db.session.query(
+        Employee.department, func.count(Employee.employee_id)
+    ).group_by(Employee.department).all()
+    department_data = {department: count for department, count in departments}
+
+    # Payroll expenses over the last 12 months
+    payroll_expenses = [record.net_salary for record in db.session.query(Payroll.net_salary).order_by(Payroll.pay_date.desc()).limit(12).all()]
+
+    # Pending leave requests count
+    pending_leaves_count = db.session.query(func.count(Leaves.leave_id)).filter(Leaves.status == 'pending').scalar()
+
+    # Employee growth - counts new hires each month for the past year
+    employee_growth = db.session.query(
+        func.extract('year', Employee.hire_date).label('year'),
+        func.extract('month', Employee.hire_date).label('month'),
+        func.count(Employee.employee_id)
+    ).filter(Employee.hire_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")
+    ).group_by('year', 'month').all()
+    
+    # Department-wise payroll expenses
+    department_payroll = db.session.query(
+        Employee.department, func.sum(Payroll.net_salary)
+    ).join(Payroll, Employee.employee_id == Payroll.employee_id
+    ).group_by(Employee.department).all()
+    department_payroll_data = {dept: total for dept, total in department_payroll}
+    
+    # Highest salary employees (top 5)
+    highest_salary_employees = db.session.query(
+        Employee.first_name, Employee.last_name, Employee.salary
+    ).order_by(Employee.salary.desc()).limit(5).all()
+    highest_salary_data = [{"name": f"{emp[0]} {emp[1]}", "salary": emp[2]} for emp in highest_salary_employees]
+
+    # Total bonuses and incentives paid in the last 12 months
+    bonuses_incentives = db.session.query(
+        func.sum(Payroll.bonus)
+    ).filter(Payroll.pay_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")).scalar()
+
+
+    return jsonify({
+        "totalEmployees": total_employees,
+        "avgSalary": round(avg_salary, 2),
+        "departmentData": department_data,
+        "payrollExpenses": payroll_expenses[::-1],  # Reverse to show in chronological order
+        "pendingLeaves" : pending_leaves_count,
+        "employeeGrowth": [{"year": int(y), "month": int(m), "count": int(c)} for y, m, c in employee_growth],
+        "departmentPayrollData": department_payroll_data,
+        "highestSalaryEmployees": highest_salary_data,
+        "bonusesIncentivesPaid": bonuses_incentives,
+    }), 200
 
 
 # Run the app
