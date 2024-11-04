@@ -89,7 +89,6 @@ const AddEmployeeForm = ({ onEmployeeAdded }) => {
           <select name="user_role" value={formData.user_role} onChange={handleChange} required>
             <option value="employee">Employee</option>
             <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
           </select>
         </div>
 

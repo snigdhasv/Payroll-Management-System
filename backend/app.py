@@ -120,9 +120,9 @@ def login():
         print(f"User found: {user.username}, stored password: '{user.password}'")
         if user.password == password:  # plain-text password comparison for testing
             print("Password matches, login successful")
-            if user.role == ['employee', 'user']:
+            if user.role in ['employee']:
                 dashboard_url = '/employee_dashboard'
-            elif user.role in ['manager', 'admin']:
+            elif user.role in ['admin']:
                 dashboard_url = '/admin_dashboard'
             else:
                 dashboard_url = '/'  # Default redirection
