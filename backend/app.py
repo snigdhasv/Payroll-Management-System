@@ -2,7 +2,11 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-from sqlalchemy import func, text
+from sqlalchemy import func, text, extract
+from datetime import datetime, timedelta, date
+from sqlalchemy import func, extract, text
+from decimal import Decimal
+from dateutil.relativedelta import relativedelta
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -110,7 +114,7 @@ def login():
         print(f"User found: {user.username}, stored password: '{user.password}'")
         if user.password == password:  # plain-text password comparison for testing
             print("Password matches, login successful")
-            if user.role == 'employee':
+            if user.role == ['employee', 'user']:
                 dashboard_url = '/employee_dashboard'
             elif user.role in ['manager', 'admin']:
                 dashboard_url = '/admin_dashboard'
@@ -142,7 +146,27 @@ def get_dashboard_data():
     department_data = {department: count for department, count in departments}
 
     # Payroll expenses over the last 12 months
-    payroll_expenses = [record.net_salary for record in db.session.query(Payroll.net_salary).order_by(Payroll.pay_date.desc()).limit(12).all()]
+    payroll_expenses_data = db.session.query(
+        extract('year', Payroll.pay_date).label('year'),
+        extract('month', Payroll.pay_date).label('month'),
+        func.sum(Payroll.net_salary)
+    ).filter(Payroll.pay_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")).group_by('year', 'month').all()
+
+    # Initialize a dictionary with the last 12 months as keys, each set to 0 initially
+    now = datetime.now()
+    last_12_months = {
+        (now - relativedelta(months=i)).strftime('%Y-%m'): 0 for i in range(11, -1, -1)  # Last 12 months in order
+    }
+
+    # Populate the dictionary with actual data from the query
+    for year, month, total in payroll_expenses_data:
+        month_key = f"{int(year)}-{int(month):02}"  # Zero-padded month
+        if month_key in last_12_months:
+            last_12_months[month_key] = float(total) if isinstance(total, Decimal) else total  # Convert Decimal to float
+
+    # Prepare x-axis labels and y-axis data
+    x_axis_labels = list(last_12_months.keys())
+    payroll_expenses = list(last_12_months.values())
 
     # Pending leave requests count
     pending_leaves_count = db.session.query(func.count(Leaves.leave_id)).filter(Leaves.status == 'pending').scalar()
@@ -152,16 +176,17 @@ def get_dashboard_data():
         func.extract('year', Employee.hire_date).label('year'),
         func.extract('month', Employee.hire_date).label('month'),
         func.count(Employee.employee_id)
-    ).filter(Employee.hire_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")
-    ).group_by('year', 'month').all()
-    
+    ).filter(Employee.hire_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")) \
+    .group_by('year', 'month') \
+    .order_by(text('year ASC'), text('month ASC')).all()
+
     # Department-wise payroll expenses
     department_payroll = db.session.query(
         Employee.department, func.sum(Payroll.net_salary)
     ).join(Payroll, Employee.employee_id == Payroll.employee_id
     ).group_by(Employee.department).all()
     department_payroll_data = {dept: total for dept, total in department_payroll}
-    
+
     # Highest salary employees (top 5)
     highest_salary_employees = db.session.query(
         Employee.first_name, Employee.last_name, Employee.salary
@@ -173,18 +198,130 @@ def get_dashboard_data():
         func.sum(Payroll.bonus)
     ).filter(Payroll.pay_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")).scalar()
 
-
     return jsonify({
         "totalEmployees": total_employees,
-        "avgSalary": round(avg_salary, 2),
+        "avgSalary": round(avg_salary, 2) if avg_salary else 0,
         "departmentData": department_data,
-        "payrollExpenses": payroll_expenses[::-1],  # Reverse to show in chronological order
-        "pendingLeaves" : pending_leaves_count,
+        "payrollExpenses": payroll_expenses,
+        "xAxisLabels": x_axis_labels,
+        "pendingLeaves": pending_leaves_count,
         "employeeGrowth": [{"year": int(y), "month": int(m), "count": int(c)} for y, m, c in employee_growth],
         "departmentPayrollData": department_payroll_data,
         "highestSalaryEmployees": highest_salary_data,
-        "bonusesIncentivesPaid": bonuses_incentives,
+        "bonusesIncentivesPaid": bonuses_incentives if bonuses_incentives else 0,
     }), 200
+
+
+# API Endpoint to fetch all employees data
+@app.route('/api/admin/employees', methods=['GET'])
+def get_all_employees():
+    employees = Employee.query.all()
+    employees_data = [
+        {
+            "employee_id": emp.employee_id,
+            "first_name": emp.first_name,
+            "last_name": emp.last_name,
+            "email": emp.email,
+            "phone_number": emp.phone_number,
+            "address": emp.address,
+            "department": emp.department,
+            "role": emp.role,
+            "status": emp.status,
+            "salary": float(emp.salary),  # Convert salary to float for JSON serialization
+            "hire_date": emp.hire_date.isoformat()  # Convert date to ISO format for JSON
+        }
+        for emp in employees
+    ]
+    return jsonify(employees_data), 200
+
+
+# API Endpoint to add a new employee
+@app.route('/api/employees', methods=['POST'])
+def add_employee():
+    data = request.get_json()
+    try:
+        # 1. Add the new employee to the Employee table
+        new_employee = Employee(
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            email=data['email'],
+            phone_number=data.get('phone_number'),
+            address=data.get('address'),
+            department=data.get('department'),
+            role=data.get('role'),  # This is the employee's job role
+            status=data.get('status'),
+            salary=data['salary'],
+            hire_date=data['hire_date']
+        )
+        db.session.add(new_employee)
+        db.session.flush()  # Flush to get employee_id for the new employee
+
+        # 2. Create a corresponding User entry for login with the user_role
+        new_user = User(
+            username=data['username'],
+            password=data['password'],  # Consider hashing this in production
+            employee_id=new_employee.employee_id,
+            role=data['user_role']  # This is the user role (access control)
+        )
+        db.session.add(new_user)
+
+        # 3. Initialize Payroll entry with specified details
+        new_payroll = Payroll(
+            employee_id=new_employee.employee_id,
+            basic_salary=data['basic_salary'],
+            bonus=data.get('bonus', 0),
+            deductions=data.get('deductions', 0),
+            pay_date=date.today(),
+            payslip_generated=False
+        )
+
+        db.session.add(new_payroll)
+        db.session.flush()  # Flush to get payroll_id
+
+        # Commit all changes as a single transaction
+        db.session.commit()
+
+        # Return success response
+        return jsonify({
+            "message": "Employee added successfully",
+            "employee_id": new_employee.employee_id,
+            "username": data['username'],
+            "payroll_id": new_payroll.payroll_id
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Failed to add employee", "error": str(e)}), 500
+        
+
+# API Endpoint to delete an employee by ID
+@app.route('/api/employees/<int:employee_id>', methods=['DELETE'])
+def delete_employee(employee_id):
+    try:
+        employee = Employee.query.get(employee_id)
+        if not employee:
+            return jsonify({"message": "Employee not found"}), 404
+        
+        # Log to check if the employee exists
+        print(f"Attempting to delete employee: {employee}")
+
+        # Delete associated payroll records
+        Payroll.query.filter_by(employee_id=employee_id).delete()
+        
+        # Log to confirm payroll deletion
+        print(f"Deleted payroll records for employee ID: {employee_id}")
+
+        # Delete the employee
+        db.session.delete(employee)
+        db.session.commit()
+        
+        print("Employee deletion successful")
+        return jsonify({"message": "Employee deleted successfully"}), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Deletion error: {e}")
+        return jsonify({"message": "Internal Server Error", "details": str(e)}), 500
 
 
 # Run the app
