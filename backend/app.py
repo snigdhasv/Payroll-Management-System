@@ -13,6 +13,11 @@ from datetime import datetime, timedelta, date
 from sqlalchemy import func, extract, text
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
+import logging
+from sqlalchemy.exc import SQLAlchemyError
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -136,86 +141,114 @@ def login():
         return jsonify({"message": "Invalid username or password"}), 401
 
 
-# API Endpoint to fetch admin dashboard data
+
 @app.route('/api/admin/dashboard', methods=['GET'])
 def get_dashboard_data():
-    # Total employees
-    total_employees = db.session.query(func.count(Employee.employee_id)).scalar()
+    try:
+        # Total employees
+        try:
+            total_employees = db.session.execute(text("CALL GetTotalEmployees()")).scalar() or 0
+        except SQLAlchemyError as e:
+            logging.error("Error fetching total employees: %s", e)
+            total_employees = 0
 
-    # Average salary
-    avg_salary = db.session.query(func.avg(Employee.salary)).scalar()
+        # Average salary
+        try:
+            avg_salary = db.session.execute(text("CALL GetAverageSalary()")).scalar()
+            avg_salary = str(round(avg_salary, 2)) if avg_salary else "0.00"
+        except SQLAlchemyError as e:
+            logging.error("Error fetching average salary: %s", e)
+            avg_salary = "0.00"
 
-    # Employee count per department
-    departments = db.session.query(
-        Employee.department, func.count(Employee.employee_id)
-    ).group_by(Employee.department).all()
-    department_data = {department: count for department, count in departments}
+        # Employee count per department
+        department_data = {}
+        try:
+            department_result = db.session.execute(text("CALL GetEmployeeCountPerDepartment()"))
+            for department, count in department_result:
+                department_data[department] = count
+        except SQLAlchemyError as e:
+            logging.error("Error fetching department data: %s", e)
 
-    # Payroll expenses over the last 12 months
-    payroll_expenses_data = db.session.query(
-        extract('year', Payroll.pay_date).label('year'),
-        extract('month', Payroll.pay_date).label('month'),
-        func.sum(Payroll.net_salary)
-    ).filter(Payroll.pay_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")).group_by('year', 'month').all()
+        # Payroll expenses over the last 12 months
+        payroll_expenses = []
+        x_axis_labels = []
+        try:
+            payroll_expenses_result = db.session.execute(text("CALL GetPayrollExpensesLast12Months()"))
+            now = datetime.now()
+            last_12_months = {
+                (now - relativedelta(months=i)).strftime('%Y-%m'): 0 for i in range(11, -1, -1)
+            }
+            for year, month, total in payroll_expenses_result:
+                month_key = f"{int(year)}-{int(month):02}"
+                if month_key in last_12_months:
+                    last_12_months[month_key] = float(total)
+            x_axis_labels = list(last_12_months.keys())
+            payroll_expenses = list(last_12_months.values())
+        except SQLAlchemyError as e:
+            logging.error("Error fetching payroll expenses: %s", e)
 
-    # Initialize a dictionary with the last 12 months as keys, each set to 0 initially
-    now = datetime.now()
-    last_12_months = {
-        (now - relativedelta(months=i)).strftime('%Y-%m'): 0 for i in range(11, -1, -1)  # Last 12 months in order
-    }
+        # Pending leave requests count
+        try:
+            pending_leaves_count = db.session.execute(text("CALL GetPendingLeavesCount()")).scalar() or 0
+        except SQLAlchemyError as e:
+            logging.error("Error fetching pending leaves count: %s", e)
+            pending_leaves_count = 0
 
-    # Populate the dictionary with actual data from the query
-    for year, month, total in payroll_expenses_data:
-        month_key = f"{int(year)}-{int(month):02}"  # Zero-padded month
-        if month_key in last_12_months:
-            last_12_months[month_key] = float(total) if isinstance(total, Decimal) else total  # Convert Decimal to float
+        # Employee growth (new hires each month for the past year)
+        employee_growth = []
+        try:
+            employee_growth_result = db.session.execute(text("CALL GetEmployeeGrowth()"))
+            for year, month, count in employee_growth_result:
+                employee_growth.append({"year": int(year), "month": int(month), "count": int(count)})
+        except SQLAlchemyError as e:
+            logging.error("Error fetching employee growth: %s", e)
 
-    # Prepare x-axis labels and y-axis data
-    x_axis_labels = list(last_12_months.keys())
-    payroll_expenses = list(last_12_months.values())
+        # Department payroll data
+        department_payroll_data = {}
+        try:
+            department_payroll_result = db.session.execute(text("CALL GetDepartmentPayrollExpenses()"))
+            for department, total in department_payroll_result:
+                department_payroll_data[department] = f"{float(total):.2f}"  # Convert to string with 2 decimals
+        except SQLAlchemyError as e:
+            logging.error("Error fetching department payroll data: %s", e)
 
-    # Pending leave requests count
-    pending_leaves_count = db.session.query(func.count(Leaves.leave_id)).filter(Leaves.status == 'pending').scalar()
+        # Highest salary employees
+        highest_salary_employees = []
+        try:
+            highest_salary_result = db.session.execute(text("CALL GetTop5HighestSalaryEmployees()"))
+            for first_name, last_name, salary in highest_salary_result:
+                highest_salary_employees.append({
+                    "name": f"{first_name} {last_name}",
+                    "salary": f"{float(salary):.2f}"  # Convert to string with 2 decimals
+                })
+        except SQLAlchemyError as e:
+            logging.error("Error fetching highest salary employees: %s", e)
 
-    # Employee growth - counts new hires each month for the past year
-    employee_growth = db.session.query(
-        func.extract('year', Employee.hire_date).label('year'),
-        func.extract('month', Employee.hire_date).label('month'),
-        func.count(Employee.employee_id)
-    ).filter(Employee.hire_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")) \
-    .group_by('year', 'month') \
-    .order_by(text('year ASC'), text('month ASC')).all()
+        # Bonuses and incentives
+        try:
+            bonuses_incentives = db.session.execute(text("CALL GetTotalBonusesIncentives()")).scalar()
+            bonuses_incentives = f"{bonuses_incentives:.2f}" if bonuses_incentives else "0.00"  # Format as string
+        except SQLAlchemyError as e:
+            logging.error("Error fetching bonuses and incentives: %s", e)
+            bonuses_incentives = "0.00"
 
-    # Department-wise payroll expenses
-    department_payroll = db.session.query(
-        Employee.department, func.sum(Payroll.net_salary)
-    ).join(Payroll, Employee.employee_id == Payroll.employee_id
-    ).group_by(Employee.department).all()
-    department_payroll_data = {dept: total for dept, total in department_payroll}
+        # Return JSON response with formatted data
+        return jsonify({
+            "totalEmployees": total_employees,
+            "avgSalary": avg_salary,
+            "departmentData": department_data,
+            "payrollExpenses": payroll_expenses,
+            "xAxisLabels": x_axis_labels,
+            "pendingLeaves": pending_leaves_count,
+            "employeeGrowth": employee_growth,
+            "departmentPayrollData": department_payroll_data,
+            "highestSalaryEmployees": highest_salary_employees,
+            "bonusesIncentivesPaid": bonuses_incentives,
+        }), 200
 
-    # Highest salary employees (top 5)
-    highest_salary_employees = db.session.query(
-        Employee.first_name, Employee.last_name, Employee.salary
-    ).order_by(Employee.salary.desc()).limit(5).all()
-    highest_salary_data = [{"name": f"{emp[0]} {emp[1]}", "salary": emp[2]} for emp in highest_salary_employees]
-
-    # Total bonuses and incentives paid in the last 12 months
-    bonuses_incentives = db.session.query(
-        func.sum(Payroll.bonus)
-    ).filter(Payroll.pay_date >= text("DATE_SUB(CURDATE(), INTERVAL 12 MONTH)")).scalar()
-
-    return jsonify({
-        "totalEmployees": total_employees,
-        "avgSalary": round(avg_salary, 2) if avg_salary else 0,
-        "departmentData": department_data,
-        "payrollExpenses": payroll_expenses,
-        "xAxisLabels": x_axis_labels,
-        "pendingLeaves": pending_leaves_count,
-        "employeeGrowth": [{"year": int(y), "month": int(m), "count": int(c)} for y, m, c in employee_growth],
-        "departmentPayrollData": department_payroll_data,
-        "highestSalaryEmployees": highest_salary_data,
-        "bonusesIncentivesPaid": bonuses_incentives if bonuses_incentives else 0,
-    }), 200
+    except Exception as e:
+        logging.error("Error in get_dashboard_data: %s", e)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # API Endpoint to fetch all employees data
