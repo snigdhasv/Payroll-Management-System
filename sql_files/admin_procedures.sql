@@ -1,6 +1,5 @@
 DELIMITER //
 
-DROP PROCEDURE IF EXISTS GetTotalEmployees;
 CREATE PROCEDURE GetTotalEmployees()
 BEGIN
     SELECT COUNT(employee_id) AS total FROM Employee;

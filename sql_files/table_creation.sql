@@ -7,6 +7,14 @@ CREATE TABLE Tax_Bracket (
     UNIQUE (min_salary, max_salary)
 );
 
+ALTER TABLE Tax_Bracket MODIFY max_salary DECIMAL(15, 2) NULL;
+
+INSERT INTO Tax_Bracket (min_salary, max_salary, tax_rate) VALUES 
+    (0.00, 30000.00, 5.00),      -- 5% tax for salaries up to 30,000
+    (30001.00, 60000.00, 10.00), -- 10% tax for salaries between 30,001 and 60,000
+    (60001.00, 100000.00, 15.00),-- 15% tax for salaries between 60,001 and 100,000
+    (100001.00, NULL, 20.00);    -- 20% tax for salaries above 100,000
+
 -- Table: Employee
 CREATE TABLE Employee (
     employee_id INT AUTO_INCREMENT PRIMARY KEY,

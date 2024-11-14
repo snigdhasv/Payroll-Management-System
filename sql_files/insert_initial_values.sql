@@ -1,11 +1,3 @@
-ALTER TABLE Tax_Bracket MODIFY max_salary DECIMAL(15, 2) NULL;
-
-INSERT INTO Tax_Bracket (min_salary, max_salary, tax_rate) VALUES 
-    (0.00, 30000.00, 5.00),      -- 5% tax for salaries up to 30,000
-    (30001.00, 60000.00, 10.00), -- 10% tax for salaries between 30,001 and 60,000
-    (60001.00, 100000.00, 15.00),-- 15% tax for salaries between 60,001 and 100,000
-    (100001.00, NULL, 20.00);    -- 20% tax for salaries above 100,000
-
 -- Populate Employee table
 INSERT INTO Employee (first_name, last_name, email, phone_number, address, department, role, status, salary, hire_date)
 VALUES 
@@ -61,6 +53,24 @@ SELECT * FROM Users;
 SELECT * FROM Employee;
 SELECT * FROM Payroll;
 SHOW TRIGGERS LIKE 'Payroll';
+SHOW TRIGGERS LIKE 'Employee';
+
+-- To check tax_bracket_id trigger
+INSERT INTO Employee (first_name, last_name, email, phone_number, address, department, role, status, salary, hire_date)
+VALUES ('Zara', 'Allen', 'zara.allen@example.com', '1234567890', '123 Main St', 'Finance', 'Analyst', 'Active', 45000, '2023-01-01');
+
+SELECT employee_id, first_name, salary, tax_bracket_id
+FROM Employee
+WHERE email = 'zara.allen@example.com';
+
+
+-- To check deduction and net_salary calculation triggers
+INSERT INTO Payroll (employee_id, basic_salary, bonus, deductions, pay_date)
+VALUES (11, 45000, 5000, 2000, '2023-01-31');
+
+SELECT payroll_id, employee_id, basic_salary, bonus, deductions, tax_deduction, net_salary
+FROM Payroll
+WHERE employee_id = 11;
 
 SELECT * FROM Payslips;
 SELECT * FROM Leaves;

@@ -1,5 +1,5 @@
 # backend/app.py
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from sqlalchemy import func, text, extract
@@ -15,13 +15,16 @@ from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 import logging
 from sqlalchemy.exc import SQLAlchemyError
+import secrets
+
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Allow CORS for cross-origin requests from React frontend
+app.secret_key = secrets.token_hex(32)
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})  # Allow CORS for cross-origin requests from React frontend
 
 # Configure SQLAlchemy to connect to MySQL
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:snig23@localhost/payroll_management_system'
@@ -115,31 +118,80 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    
-    print(f"Received login attempt for username: '{username}', password: '{password}'")
+
+    print(f"Received login attempt for username: '{username}'")
 
     # Query for user with the provided username
     user = User.query.filter_by(username=username).first()
 
-    if user:
-        print(f"User found: {user.username}, stored password: '{user.password}'")
-        if user.password == password:  # plain-text password comparison for testing
-            print("Password matches, login successful")
-            if user.role in ['employee']:
-                dashboard_url = '/employee_dashboard'
-            elif user.role in ['admin']:
-                dashboard_url = '/admin_dashboard'
-            else:
-                dashboard_url = '/'  # Default redirection
-                
-            return jsonify({"message": "Login successful", "role": user.role, "dashboard_url": dashboard_url}), 200
-        else:
-            print("Password does not match")
-            return jsonify({"message": "Invalid username or password"}), 401
+    if user and user.password == password:  # Simplified password check
+        # Store user ID and role in session
+        session['employee_id'] = user.employee_id
+        session['role'] = user.role
+        
+        print("Login successful, session created")
+        dashboard_url = '/employee_dashboard' if user.role == 'employee' else '/admin_dashboard'
+        return jsonify({"message": "Login successful", "role": user.role, "dashboard_url": dashboard_url}), 200
     else:
-        print("User not found")
+        print("Invalid credentials")
         return jsonify({"message": "Invalid username or password"}), 401
+    
+    
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.clear()  # Clear all session data
+    return jsonify({"message": "Logged out successfully"}), 200
 
+
+
+@app.route('/api/employee/dashboard', methods=['GET'])
+def get_employee_payroll():
+    # Retrieve `employee_id` from session instead of expecting it in request params
+    employee_id = session.get('employee_id')
+    if not employee_id:
+        return jsonify({"error": "Employee ID is required"}), 400
+
+    # Fetch payroll data for the specific employee
+    payroll_data = (
+        db.session.query(
+            Employee.first_name,
+            Employee.last_name,
+            Employee.role,
+            Employee.department,
+            Payroll.pay_date,
+            Payroll.basic_salary,
+            Payroll.bonus,
+            Payroll.tax_deduction,
+            Payroll.deductions,
+            Payroll.net_salary,
+            Payroll.payslip_generated,
+            Payslip.payslip_id,
+            Payslip.payslip_pdf    
+        )
+        .join(Employee, Employee.employee_id == Payroll.employee_id)
+        .outerjoin(Payslip, Payroll.payroll_id == Payslip.payroll_id)
+        .filter_by(employee_id=employee_id)
+    )
+
+    if not payroll_data:
+        return jsonify({"message": "No payroll data found for this employee"}), 404
+
+    # Format payroll data for response
+    payroll_details = [{
+        "employee_name": f"{record.first_name} {record.last_name}",
+        "role": record.role,
+        "department": record.department,
+        "pay_date": record.pay_date,
+        "basic_salary": float(record.basic_salary),
+        "bonus": float(record.bonus),
+        "tax_deduction": float(record.tax_deduction),
+        "deductions": float(record.deductions),
+        "net_salary": float(record.net_salary),
+        "payslip_generated": bool(record.payslip_generated),
+        "payslip_pdf": f"/api/payslip/download/{record.payslip_id}" if record.payslip_id else None
+    } for record in payroll_data]
+
+    return jsonify(payroll_details), 200
 
 
 @app.route('/api/admin/dashboard', methods=['GET'])

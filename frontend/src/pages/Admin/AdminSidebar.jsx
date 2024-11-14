@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import styles from '../../styles/Admin/AdminSidebar.module.css';
+import styles from '../../styles/Sidebar.module.css';
 
 const Sidebar = () => {
     const location = useLocation(); // Hook to get the current route path

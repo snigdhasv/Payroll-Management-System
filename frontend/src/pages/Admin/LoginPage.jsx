@@ -18,7 +18,7 @@ const LoginPage = () => {
       const response = await axios.post('http://localhost:5000/api/login', {
         username,
         password,
-      });
+      }, { withCredentials: true });
 
       console.log(response.data); // Debug the response
 
