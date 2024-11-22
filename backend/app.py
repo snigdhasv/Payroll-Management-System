@@ -620,6 +620,57 @@ def update_leave_status():
         return jsonify({"message": "Leave record not found"}), 404
 
 
+# Fetch employee profile
+@app.route('/api/employee/profile', methods=['GET'])
+def get_employee_profile():
+    employee_id = session.get('employee_id')
+    if not employee_id:
+        return jsonify({"error": "Employee ID is required"}), 400
+
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return jsonify({"error": "Employee not found"}), 404
+
+    logging.debug(f"Fetched profile for employee ID: {employee_id}")
+    return jsonify({
+        "first_name": employee.first_name,
+        "last_name": employee.last_name,
+        "email": employee.email,
+        "phone_number": employee.phone_number,
+        "address": employee.address,
+        "department": employee.department,
+        "role": employee.role,
+    }), 200
+
+# Update employee profile
+@app.route('/api/employee/profile', methods=['PUT'])
+def update_employee_profile():
+    employee_id = session.get('employee_id')
+    if not employee_id:
+        return jsonify({"error": "Employee ID is required"}), 400
+
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return jsonify({"error": "Employee not found"}), 404
+
+    data = request.json
+    logging.debug(f"Updating profile for employee ID {employee_id} with data: {data}")
+
+    try:
+        employee.first_name = data.get('first_name', employee.first_name)
+        employee.last_name = data.get('last_name', employee.last_name)
+        employee.email = data.get('email', employee.email)
+        employee.phone_number = data.get('phone_number', employee.phone_number)
+        employee.address = data.get('address', employee.address)
+        employee.department = data.get('department', employee.department)
+        employee.role = data.get('role', employee.role)
+        
+        db.session.commit()
+        logging.info(f"Profile updated successfully for employee ID: {employee_id}")
+        return jsonify({"message": "Profile updated successfully"}), 200
+    except Exception as e:
+        logging.error(f"Error updating profile: {e}")
+        return jsonify({"error": "Error updating profile"}), 500
 
 # Run the app
 if __name__ == '__main__':
