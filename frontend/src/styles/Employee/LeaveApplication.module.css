@@ -90,3 +90,20 @@
     border: 1px solid #f5c6cb;
   }
   
+  .leaveTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+  
+  .leaveTable th, .leaveTable td {
+    border: 1px solid #ddd;
+    text-align: left;
+    padding: 8px;
+  }
+  
+  .leaveTable th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+  

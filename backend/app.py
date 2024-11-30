@@ -744,6 +744,37 @@ def apply_leave():
         print(f"Error in apply_leave: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
+@app.route('/api/employee/leave_history', methods=['GET'])
+def leave_history():
+    try:
+        # Retrieve employee_id from session
+        employee_id = session.get('employee_id')
+        if not employee_id:
+            return jsonify({"error": "Employee ID is required"}), 400
+
+        # Query the database for leave records of the employee
+        leaves = Leaves.query.filter_by(employee_id=employee_id).order_by(Leaves.start_date.desc()).all()
+
+        # Format the data for the frontend
+        leave_history = [
+            {
+                "leave_id": leave.leave_id,
+                "leave_type": leave.leave_type,
+                "start_date": leave.start_date.strftime('%Y-%m-%d'),
+                "end_date": leave.end_date.strftime('%Y-%m-%d'),
+                "status": leave.status,
+                "total_leave_days": leave.total_leave_days,
+                "reason": leave.reason,
+            }
+            for leave in leaves
+        ]
+
+        return jsonify({"leave_history": leave_history}), 200
+
+    except Exception as e:
+        print(f"Error in leave_history: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
 
 # Run the app
 if __name__ == '__main__':
