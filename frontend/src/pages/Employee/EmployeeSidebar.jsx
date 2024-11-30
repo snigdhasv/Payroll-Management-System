@@ -26,7 +26,7 @@ const Sidebar = () => {
                     </li>
                     <li>
                         <div className={`${styles.navLinks} ${isActive('/payroll') ? styles.active : ''}`}>
-                            <Link to="/payroll">Apply for Leave</Link>
+                            <Link to="/apply-leave">Apply for Leave</Link>
                         </div>
                     </li>
                 </ul>

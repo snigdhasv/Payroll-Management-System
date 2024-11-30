@@ -16,6 +16,7 @@ from dateutil.relativedelta import relativedelta
 import logging
 from sqlalchemy.exc import SQLAlchemyError
 import secrets
+from sqlalchemy.exc import IntegrityError
 
 
 # Configure logging
@@ -24,7 +25,15 @@ logging.basicConfig(level=logging.DEBUG)
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})  # Allow CORS for cross-origin requests from React frontend
+CORS(app, 
+     supports_credentials=True, 
+     resources={r"/*": {
+         "origins": "http://localhost:5173",
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Range", "X-Content-Range"],
+         "supports_credentials": True
+     }})
 
 # Configure SQLAlchemy to connect to MySQL
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:snig23@localhost/payroll_management_system'
@@ -90,14 +99,27 @@ class Payroll(db.Model):
     
 class Leaves(db.Model):
     __tablename__ = 'Leaves'
-    leave_id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('Employee.employee_id'), nullable=False)
-    leave_type = db.Column(db.String(50))
+    
+    leave_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('Employee.employee_id', ondelete='CASCADE'), nullable=False)
+    leave_type = db.Column(db.String(50), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), nullable=False)  # e.g., 'pending', 'approved', 'rejected'
-    total_leave_days = db.Column(db.Integer)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    total_leave_days = db.Column(
+        db.Integer, 
+        nullable=True, 
+        server_default=db.text("DATEDIFF(end_date, start_date) + 1")  # MySQL syntax
+    )
     reason = db.Column(db.Text)
+    
+    def __init__(self, employee_id, leave_type, start_date, end_date, reason, status='pending'):
+        self.employee_id = employee_id
+        self.leave_type = leave_type
+        self.start_date = start_date
+        self.end_date = end_date
+        self.reason = reason
+        self.status = status
 
 class Payslip(db.Model):
     __tablename__ = 'Payslips'
@@ -671,6 +693,57 @@ def update_employee_profile():
     except Exception as e:
         logging.error(f"Error updating profile: {e}")
         return jsonify({"error": "Error updating profile"}), 500
+    
+    
+@app.route('/api/employee/apply_leave', methods=['POST'])
+def apply_leave():
+    try:
+        # Retrieve employee_id from session
+        employee_id = session.get('employee_id')
+        if not employee_id:
+            return jsonify({"error": "Employee ID is required"}), 400
+
+        # Parse request JSON
+        data = request.json
+        leave_type = data.get('leave_type')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        reason = data.get('reason')
+
+        # Input validation
+        if not leave_type or not start_date or not end_date:
+            return jsonify({"error": "Leave type, start date, and end date are required"}), 400
+
+        # Validate date formats
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            if start_date_obj > end_date_obj:
+                return jsonify({"error": "Start date cannot be after end date"}), 400
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+        # Insert new leave record into the database
+        new_leave = Leaves(
+            employee_id=employee_id,
+            leave_type=leave_type,
+            start_date=start_date_obj,
+            end_date=end_date_obj,
+            reason=reason,
+            status='pending'
+        )
+        db.session.add(new_leave)
+        db.session.commit()
+
+        return jsonify({"message": "Leave application submitted successfully"}), 201
+
+    except IntegrityError as e:
+        print(f"Database integrity error: {e}")
+        return jsonify({"error": "Database integrity error. Check foreign key constraints"}), 500
+    except Exception as e:
+        print(f"Error in apply_leave: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
 
 # Run the app
 if __name__ == '__main__':
